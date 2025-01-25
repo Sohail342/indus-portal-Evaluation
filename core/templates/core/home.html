@@ -3,32 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Form with Tailwind CSS</title>
+    <title>Interactive Form with Tailwind CSS</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
-    <!-- Form to Submit Button -->
-    <form action="" method="post" class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 w-full max-w-sm">
+<body class="bg-gradient-to-br from-blue-100 to-blue-300 flex items-center justify-center min-h-screen">
+
+    {% if messages %}
+        <div class="absolute top-0 left-0 w-full h-full flex items-center justify-center z-10">
+            {% for message in messages %}
+                {% if message.tags == 'success' %}
+                    <div class="p-4 mb-4 text-sm text-green-800 bg-green-200 rounded-lg shadow-md animate-fadeIn" role="alert">
+                        {{ message }}
+                    </div>
+                {% elif message.tags == 'error' %}
+                    <div class="p-4 mb-4 text-sm text-red-800 bg-red-200 rounded-lg shadow-md animate-fadeIn" role="alert">
+                        {{ message }}
+                    </div>
+                {% else %}
+                    <div class="p-4 mb-4 text-sm text-gray-800 bg-gray-200 rounded-lg shadow-md animate-fadeIn" role="alert">
+                        {{ message }}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% endif %}
+
+
+    <form action="" method="post" class="bg-white shadow-lg rounded-lg px-8 pt-6 pb-8 w-full max-w-md transform transition duration-500 hover:scale-105">
         {% csrf_token %}
+        <!-- Title -->
+        <h2 class="text-2xl font-bold text-center text-gray-700 mb-6">Automated tool for Indus University Evaluation</h2>
+
         <!-- Username -->
         <div class="mb-4">
-            <label for="username" class="block text-gray-700 text-sm font-bold mb-2">Username:</label>
+            <label for="username" class="block text-gray-600 text-sm font-medium mb-1">Username:</label>
             <input type="text" id="username" name="username" required 
-                class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" 
+                class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-4 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500 transition duration-300" 
                 placeholder="Enter your username">
         </div>
+
         <!-- Password -->
         <div class="mb-6">
-            <label for="password" class="block text-gray-700 text-sm font-bold mb-2">Password:</label>
+            <label for="password" class="block text-gray-600 text-sm font-medium mb-1">Password:</label>
             <input type="password" id="password" name="password" required 
-                class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" 
+                class="shadow-sm border border-gray-300 rounded-lg w-full py-2 px-4 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500 transition duration-300" 
                 placeholder="Enter your password">
         </div>
+
         <!-- Submit Button -->
-        <div class="flex items-center justify-between">
-            <input type="submit" value="Submit" 
-                class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+        <div class="flex items-center justify-center">
+            <input type="submit" value="Fill evaluation" 
+                class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-blue-300 transition duration-300 cursor-pointer">
         </div>
     </form>
+
+    <style>
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .animate-fadeIn {
+            animation: fadeIn 0.5s ease-out;
+        }
+    </style>
 </body>
 </html>

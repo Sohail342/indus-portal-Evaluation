@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from playwright.sync_api import sync_playwright
 from urllib.parse import urlparse, parse_qs
-import time
+from django.contrib import messages
 
 
 def home(request):
@@ -113,7 +113,9 @@ def home(request):
                             print(f"Error processing row {i + 1}: {e}")
 
                 # Print the evaluated items
-                print("Evaluated Items:", evaluated_items)
+                messages.success(request, "Evaluation Completed")
+                
+                
 
             except Exception as e:
                 print("Error:", e)
