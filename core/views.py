@@ -1,13 +1,8 @@
 from django.shortcuts import render
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import Select
+from playwright.sync_api import sync_playwright
 from urllib.parse import urlparse, parse_qs
 import time
 
-driver = None
 
 def home(request):
     if request.method == 'POST':
@@ -15,176 +10,119 @@ def home(request):
         Password = request.POST.get('password')
         Options = request.POST.get('options')
 
-        driver = webdriver.Chrome()
+        # Start Playwright
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=False)
+            context = browser.new_context()
+            page = context.new_page()
 
-        try:
-            # Open the login page
-            driver.get("http://lms.induscms.com:81/ords/r/erasoft/student-app1400450/login")
-            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "P9999_USERNAME")))
+            try:
+                # Open the login page
+                page.goto("http://lms.induscms.com:81/ords/r/erasoft/student-app1400450/login")
+                page.wait_for_selector("#P9999_USERNAME", timeout=30000)
 
-            # Login
-            driver.find_element(By.ID, "P9999_USERNAME").send_keys(str(Username))
-            driver.find_element(By.ID, "P9999_PASSWORD").send_keys(str(Password))
-            driver.find_element(By.ID, "B325920686219386643").click()
-            print("Logged in successfully!")
+                # Login
+                if Username and Password:
+                    page.fill("#P9999_USERNAME", str(Username))
+                    page.fill("#P9999_PASSWORD", str(Password))
+                    page.click("#B325920686219386643")
+                    print("Logged in successfully!")
 
-            # Wait for URL to load
-            WebDriverWait(driver, 10).until(lambda d: "session" in d.current_url)
+                # Wait for the page to load completely
+                page.wait_for_load_state("networkidle", timeout=30000)
 
-            # Extract session ID
-            current_url = driver.current_url
-            session_id = parse_qs(urlparse(current_url).query).get("session", [None])[0]
-            if not session_id:
-                raise Exception("Session ID not found in the URL.")
+                # Extract session ID from the current URL
+                current_url = page.url
+                print("Current URL after login:", current_url)
 
-            print("Extracted Session ID:", session_id)
+                # Check if the session ID is present in the URL
+                if "session=" not in current_url:
+                    raise Exception("Session ID not found in the URL.")
 
-            # Navigate to QEC Proforma
-            driver.get(f"http://lms.induscms.com:81/ords/r/erasoft/student-app1400450/qec-evaluation?session={session_id}")
-            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "P40_CHOICE")))
+                session_id = parse_qs(urlparse(current_url).query).get("session", [None])[0]
+                if not session_id:
+                    raise Exception("Session ID not found in the URL.")
+                print("Extracted Session ID:", session_id)
 
-            # Select options from dropdown
-            dropdown = Select(driver.find_element(By.ID, "P40_CHOICE"))
-            options = [str(Options), "CE", "GS", "AS"]
-            
-            def fill_evaluation():
-                
-                # flag for checking if "Go for Evaluation" is found
-                go_for_evaluation_found = False
-                flag = True
-            
+                # Navigate to QEC Proforma
+                page.goto(f"http://lms.induscms.com:81/ords/r/erasoft/student-app1400450/qec-evaluation?session={session_id}")
+                page.wait_for_selector("#P40_CHOICE", timeout=30000)
 
-                evaluated_items = []  # List to store evaluated items
+                # Select options from dropdown
+                ''' Course Evaluation, Teacher Evaluation'''
+                options = ['TE', "CE"]
+                evaluated_items = []
 
                 for option in options:
-                    dropdown.select_by_value(option)
+                    dropdown = page.locator("#P40_CHOICE")
+                    dropdown.select_option(value=option)
                     print(f"Selected option: {option}")
-                    time.sleep(2)
 
-                    try:
-                        while flag:
-                            # Wait for the table rows to load
-                            rows = WebDriverWait(driver, 10).until(
-                                EC.presence_of_all_elements_located((By.XPATH, "//table[@class='t-Report-report']//tbody/tr"))
-                            )
+                    # Wait for the page to reload after selecting the dropdown option
+                    page.wait_for_load_state("networkidle", timeout=30000)
 
-                            # Iterate over rows and locate the "Go for Evaluation" links
-                            for index, row in enumerate(rows):
-                                try:
-                                    # Refresh the table row to prevent stale element exception
-                                    row = WebDriverWait(driver, 10).until(
-                                        EC.presence_of_element_located((By.XPATH, f"(//table[@class='t-Report-report']//tbody/tr)[{index + 1}]"))
-                                    )
-                                    
+                    # Re-locate the rows after the page reloads
+                    rows = page.locator("//table[@class='t-Report-report']//tbody/tr")
+                    row_count = rows.count()
+                    print(f"Number of rows found: {row_count}")
 
-                                    # Locate the "Go for Evaluation" link in the current row
-                                    link_element = row.find_element(By.XPATH, ".//td[@headers='START_EVALUATION_000']/a")
+                    for i in range(row_count):
+                        row = rows.nth(i)
 
-                                    from icecream import ic
-                                    ic("Outside if")
-                                    # Check if the link is visible and contains the desired text
-                                    if link_element.is_displayed() and "Go for Evaluation" in link_element.text:
-                                        go_for_evaluation_found = True
-                                        link_element.click()
+                        try:
+                            # Locate "Go for Evaluation" link
+                            link_element = row.locator(".//td[@headers='START_EVALUATION_000']/a")
 
-                                        # Wait for the evaluation page to load and perform actions
-                                        time.sleep(2)
-                                        
-                                        try: 
-                                            # Try to locate the "Start Evaluation" button
-                                            start_evaluation_button = driver.find_element(By.ID, "B323259646833575587")
-                                            
-                                            # Check if the button is displayed
-                                            if start_evaluation_button.is_displayed():
-                                                # Click the button if it is visible
-                                                start_evaluation_button.click()
-                                                print("Clicked on 'Start Evaluation'")
-                                            else:
-                                                print("'Start Evaluation' button is not visible")
+                            if link_element.is_visible() and "Go for Evaluation" in link_element.inner_text():
+                                link_element.click()
+                                print("Navigated to evaluation page.")
 
-                                        except Exception as e:
-                                            # Handle the case where the button is not found
-                                            print("Start Evaluation button not found or an error occurred:", e)
-                                            
-                                            
-                                        # Example of performing actions on the evaluation page
-                                        # This can include filling in fields, selecting options, or submitting
-                                        # Find all the radio buttons on the page
-                                        radio_buttons = driver.find_elements(By.CSS_SELECTOR, 'input[type="radio"]')
+                                # Wait for the evaluation page to load
+                                page.wait_for_selector("#B323259646833575587", timeout=30000)
 
-                                        # Loop through all radio buttons and click the first one for each group
-                                        for radio_button in radio_buttons:
-                                            if not radio_button.is_selected():  # Check if the radio button is not selected
-                                                radio_button.click() 
-                                                
-                                                
-                                        
-                                        # Find all the text areas (text fields) on the page
-                                        text_fields = driver.find_elements(By.TAG_NAME, "textarea")
+                                # Start Evaluation
+                                start_button = page.locator("#B323259646833575587")
+                                if start_button.is_visible():
+                                    start_button.click()
+                                    print("Clicked 'Start Evaluation'")
 
-                                        # Loop through each text field and fill it with "Good"
-                                        for text_field in text_fields:
-                                            text_field.clear()  # Clear any existing text
-                                            text_field.send_keys("Good")  # Fill the text field with "Good"
-                                            
-                                            
-                                        # Find the submit button and click it
-                                        # Locate the button using XPATH
-                                        submit_button = WebDriverWait(driver, 10).until(
-                                            EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 't-Button--hot') and contains(@onclick, 'apex.submit')]"))
-                                        )
+                                # Fill radio buttons
+                                radio_buttons = page.locator("input[type='radio']")
+                                for j in range(radio_buttons.count()):
+                                    button = radio_buttons.nth(j)
+                                    if not button.is_checked():
+                                        button.check()
 
-                                        # Click the button
-                                        submit_button.click()
+                                # Fill text fields
+                                text_fields = page.locator("textarea")
+                                for j in range(text_fields.count()):
+                                    text_fields.nth(j).fill("Good")
 
-                                        
+                                # Submit the form
+                                submit_button = page.locator("//button[contains(@class, 't-Button--hot') and contains(@onclick, 'apex.submit')]")
+                                submit_button.click()
+                                print(f"Evaluation submitted for option {option}.")
 
-                                        # Add evaluated item to the list
-                                        evaluated_items.append(f"Evaluated item from {option} option")
+                                # Append evaluated items
+                                evaluated_items.append(f"Evaluated item from {option} option")
 
-                                        time.sleep(3)  # Wait for the page to load
-                                        # Navigate back to the original page
-                                        driver.get(f"http://lms.induscms.com:81/ords/r/erasoft/student-app1400450/qec-evaluation?session={session_id}")
+                                # Navigate back to the main page
+                                page.goto(f"http://lms.induscms.com:81/ords/r/erasoft/student-app1400450/qec-evaluation?session={session_id}")
+                                page.wait_for_selector("//table[@class='t-Report-report']//tbody/tr", timeout=30000)
 
-                                        # Wait for the original page to reload
-                                        WebDriverWait(driver, 10).until(
-                                            EC.presence_of_element_located((By.XPATH, "//table[@class='t-Report-report']//tbody/tr"))
-                                        )
+                        except Exception as e:
+                            print(f"Error processing row {i + 1}: {e}")
 
-                                        # Break the loop to avoid reprocessing rows
-                                        
-
-                                except Exception as e:
-                                    print(f"Error processing row {index + 1}: {e}")
-                            # Break the loop to avoid reprocessing rows
-                            if go_for_evaluation_found == False:
-                                from icecream import ic
-                                ic("No evaluation link found in this row, moving to next option.")
-                                flag = False
-                                            
-                        
-
-                    except Exception as e:
-                        print("Error locating table rows:", e)              
-                            
-                    
-                    if go_for_evaluation_found == False:
-                        from icecream import ic
-                        ic("continue")
-                        driver.get(f"http://lms.induscms.com:81/ords/r/erasoft/student-app1400450/home?session={session_id}")
-                        flag = True
-                        options.pop(0)
-                        fill_evaluation()
-                        # continue
-
-                # Print out the evaluated items after completing the process
+                # Print the evaluated items
                 print("Evaluated Items:", evaluated_items)
-                
-            fill_evaluation()
-        except Exception as e:
-            print("Error:", e)
 
-        finally:
-            driver.quit()
+            except Exception as e:
+                print("Error:", e)
+                # Debugging: Print page content or take a screenshot
+                print(page.content())
+                page.screenshot(path="error_screenshot.png")
+
+            finally:
+                browser.close()
+
     return render(request, 'core/home.html')
-            
