@@ -8,7 +8,6 @@ def home(request):
     if request.method == 'POST':
         Username = request.POST.get('username')
         Password = request.POST.get('password')
-        Options = request.POST.get('options')
 
         # Start Playwright
         with sync_playwright() as playwright:
